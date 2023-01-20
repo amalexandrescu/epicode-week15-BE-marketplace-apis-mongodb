@@ -1,7 +1,7 @@
 import express from "express";
 import ProductsModel from "./productsModel.js";
 import createHttpError from "http-errors";
-import productsModel from "./productsModel.js";
+import CartsModel from "./cartsModel.js";
 import q2m from "query-to-mongo";
 
 const productsRouter = express.Router();
@@ -260,5 +260,74 @@ productsRouter.delete(
     }
   }
 );
+
+productsRouter.post("/cart", async (req, res, next) => {
+  try {
+    //in the req.body we will get the produst we want to create
+    const newCart = new CartsModel(req.body);
+    const { _id } = await newCart.save();
+    res.status(201).send({ _id });
+  } catch (error) {
+    next(error);
+  }
+});
+
+productsRouter.post("/:cartId", async (req, res, next) => {
+  try {
+    //in req.body we will receive productId and the quantity
+
+    const { productId, quantity } = req.body;
+
+    const cart = CartsModel.findById(req.params.cartId);
+
+    if (!cart) {
+      return next(
+        createHttpError(404, `Cart with id ${req.params.cartId} not found`)
+      );
+    }
+
+    const product = await ProductsModel.findById(productId);
+
+    if (!product) {
+      return next(
+        createHttpError(404, `Product with id ${productId} not found`)
+      );
+    }
+
+    // const index = cart.products.findIndex(
+    //   (product) => product.productId.toString() === productId
+    // );
+
+    const isProductThere = await CartsModel.findOne({
+      _id: req.params.cartId,
+      "products.productId": productId,
+    });
+
+    // if (index !== -1)
+    if (isProductThere) {
+      // cart.products[index].quantity += quantity;
+
+      const updatedCart = await CartsModel.findOneAndUpdate(
+        {
+          _id: req.params.cartId,
+          "products.productId": productId,
+        }, // WHAT
+        { $inc: { "products.$.quantity": quantity } }, // HOW
+        { new: true, runValidators: true } // OPTIONS
+      );
+
+      res.send(updatedCart);
+    } else {
+      const modifiedCart = await CartsModel.findOneAndUpdate(
+        req.body.cartId, // WHAT
+        { $push: { products: { productId: productId, quantity } } }, // HOW
+        { new: true, runValidators: true, upsert: true } // OPTIONS, upsert:true means if the product is NOT found --> Mongo please create that automagically (also with the productId and quantity in it)
+      );
+      res.send(modifiedCart);
+    }
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default productsRouter;
