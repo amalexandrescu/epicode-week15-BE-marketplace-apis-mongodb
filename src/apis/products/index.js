@@ -275,38 +275,41 @@ productsRouter.post("/cart", async (req, res, next) => {
 productsRouter.post("/:cartId", async (req, res, next) => {
   try {
     //in req.body we will receive productId and the quantity
-
+    console.log("cart id: ", req.params.cartId);
     const { productId, quantity } = req.body;
 
-    const cart = CartsModel.findById(req.params.cartId);
+    const cart = await CartsModel.findById(req.params.cartId);
 
-    if (!cart) {
-      return next(
-        createHttpError(404, `Cart with id ${req.params.cartId} not found`)
-      );
-    }
+    if (!cart)
+      next(createHttpError(404, `Cart with id ${req.params.cartId} not found`));
 
     const product = await ProductsModel.findById(productId);
 
-    if (!product) {
-      return next(
-        createHttpError(404, `Product with id ${productId} not found`)
-      );
-    }
+    if (!product)
+      next(createHttpError(404, `Product with id ${productId} not found`));
 
-    // const index = cart.products.findIndex(
-    //   (product) => product.productId.toString() === productId
-    // );
+    // const index = cart.products.findIndex((product) => {
+    //   console.log("productId: ", productId);
+    //   console.log("product.productId: ", product.productId);
+    //   return product.productId.toString() === productId.toString();
+    // });
 
-    const isProductThere = await CartsModel.findOne({
-      _id: req.params.cartId,
-      "products.productId": productId,
-    });
+    console.log("cart products", cart.products);
+
+    const index = cart.products.findIndex(
+      (product) => product.productId.toString() === req.body.productId
+    );
+
+    console.log("index of the searched product", index);
+    // await CartsModel.findOne({
+    //   _id: req.params.cartId,
+    //   "products.productId": productId,
+    // });
 
     // if (index !== -1)
-    if (isProductThere) {
+    if (index !== -1) {
       // cart.products[index].quantity += quantity;
-
+      console.log("**********1***********");
       const updatedCart = await CartsModel.findOneAndUpdate(
         {
           _id: req.params.cartId,
@@ -318,9 +321,11 @@ productsRouter.post("/:cartId", async (req, res, next) => {
 
       res.send(updatedCart);
     } else {
+      console.log("**********2***********");
+      // console.log("cart id: ", req.params.cartId);
       const modifiedCart = await CartsModel.findOneAndUpdate(
-        req.body.cartId, // WHAT
-        { $push: { products: { productId: productId, quantity } } }, // HOW
+        { _id: req.params.cartId }, // WHAT
+        { $push: { products: { productId: productId, quantity: quantity } } }, // HOW
         { new: true, runValidators: true, upsert: true } // OPTIONS, upsert:true means if the product is NOT found --> Mongo please create that automagically (also with the productId and quantity in it)
       );
       res.send(modifiedCart);
